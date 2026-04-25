@@ -1,4 +1,4 @@
-# redirwin dotfiles
+# My dotfiles
 
 Personal config that follows me from machine to machine. Currently scoped to user-level slash commands and shared agent skills for AI coding tools; can grow to cover shell, git, and editor config later.
 
@@ -16,41 +16,41 @@ dotfiles/
 
 Each `prompts/my-*.md` file becomes a `/my-<name>` slash command in three AI coding agents:
 
-| Agent          | Target folder                                  | Filename                  |
-| -------------- | ---------------------------------------------- | ------------------------- |
-| Claude Code    | `~/.claude/commands/`                          | `my-<name>.md`            |
-| OpenAI Codex   | `~/.codex/prompts/`                            | `my-<name>.md`            |
-| GitHub Copilot | `%APPDATA%\Code\User\prompts\` (VS Code user)  | `my-<name>.prompt.md`     |
+| Agent          | Target folder                                 | Filename              |
+| -------------- | --------------------------------------------- | --------------------- |
+| Claude Code    | `~/.claude/commands/`                         | `my-<name>.md`        |
+| OpenAI Codex   | `~/.codex/prompts/`                           | `my-<name>.md`        |
+| GitHub Copilot | `%APPDATA%\Code\User\prompts\` (VS Code user) | `my-<name>.prompt.md` |
 
 The installer **copies** files into these target folders (no symlinks, no admin/Developer Mode required). Edits made directly in a target folder do **not** flow back - always edit in `prompts/` and re-run the installer.
 
 ## How the skills work
 
-Each `skills/<skill-name>/SKILL.md` becomes a user-scoped agent skill that the agent loads when the description matches the user's request. Skills are how an agent learns *behavioral procedures* (e.g. "how to do a git sync"), as opposed to slash commands which are *one-shot prompt templates*.
+Each `skills/<skill-name>/SKILL.md` becomes a user-scoped agent skill that the agent loads when the description matches the user's request. Skills are how an agent learns _behavioral procedures_ (e.g. "how to do a git sync"), as opposed to slash commands which are _one-shot prompt templates_.
 
-| Agent          | Target folder                       |
-| -------------- | ----------------------------------- |
-| Claude Code    | `~/.claude/skills/<skill-name>/`    |
-| OpenAI Codex   | `~/.codex/skills/<skill-name>/`     |
+| Agent        | Target folder                    |
+| ------------ | -------------------------------- |
+| Claude Code  | `~/.claude/skills/<skill-name>/` |
+| OpenAI Codex | `~/.codex/skills/<skill-name>/`  |
 
 Cursor and Copilot do not support user-scoped skills, so this layer covers Claude Code and Codex only.
 
 ## Current prompts
 
-| Command          | What it does                                                                 |
-| ---------------- | ---------------------------------------------------------------------------- |
-| `/my-onboard`    | Alias for `/my-new-convo`.                                                   |
-| `/my-new-convo`  | Read root readme, AGENTS/CLAUDE.md, manifest, and folder structure; summarize the project in <=200 words and stand by for updates. |
-| `/my-nccp`       | "No code changes, please" - read-only analysis only; no file writes.         |
-| `/my-commit-msg` | Review work since the last commit and propose one short commit message; do not run git. |
+| Command          | What it does                                                                                                                              |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `/my-onboard`    | Alias for `/my-new-convo`.                                                                                                                |
+| `/my-new-convo`  | Read root readme, AGENTS/CLAUDE.md, manifest, and folder structure; summarize the project in <=200 words and stand by for updates.        |
+| `/my-nccp`       | "No code changes, please" - read-only analysis only; no file writes.                                                                      |
+| `/my-commit-msg` | Review work since the last commit and propose one short commit message; do not run git.                                                   |
 | `/my-git-sync`   | `git add -A`, commit with a short summary derived from the staged diff (only if anything is staged), then `git push`. Never force-pushes. |
 
 ## Current skills
 
-| Skill                     | What it does                                                                              |
-| ------------------------- | ----------------------------------------------------------------------------------------- |
-| `shortcut-interpretation` | Expands inline prompt shortcuts (`/onboard`, `/nccp`, `/commit msg`, `/git sync`, `/sync agents`) anywhere in a message. |
-| `git-sync`                | Defines the full git add+commit+push procedure used by `/my-git-sync` and `/git sync`.    |
+| Skill                     | What it does                                                                                                                      |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `shortcut-interpretation` | Expands inline prompt shortcuts (`/onboard`, `/nccp`, `/commit msg`, `/git sync`, `/sync agents`) anywhere in a message.          |
+| `git-sync`                | Defines the full git add+commit+push procedure used by `/my-git-sync` and `/git sync`.                                            |
 | `skill-authoring`         | Conventions for writing skills in repos using the repo-agents-sync scaffolding (`.agents/skills/`, `repo-` command prefix, etc.). |
 
 ## First-time setup on a new machine
@@ -123,7 +123,7 @@ This is a deliberate tradeoff (no implicit per-repo injection of personal config
 2. Run that repo's sync script (`scripts/sync-agents.ps1` on Windows or `.sh` on macOS/Linux). This mirrors the new file or folder into `.cursor/`, `.claude/`, and `.github/`.
 3. Commit the addition to the repo if other people work there and need the same behavior; otherwise gitignore the copy as a personal-only addition.
 
-**Heuristic:** only do this for repos where you'll routinely use Cursor *and* need the specific behavior. For one-off use, just type the explicit instruction instead of typing the shortcut.
+**Heuristic:** only do this for repos where you'll routinely use Cursor _and_ need the specific behavior. For one-off use, just type the explicit instruction instead of typing the shortcut.
 
 ## What's not in scope (yet)
 
