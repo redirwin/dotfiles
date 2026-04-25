@@ -51,6 +51,7 @@ Cursor and Copilot do not support user-scoped skills, so this layer covers Claud
 | ------------------------- | ----------------------------------------------------------------------------------------- |
 | `shortcut-interpretation` | Expands inline prompt shortcuts (`/onboard`, `/nccp`, `/commit msg`, `/git sync`, `/sync agents`) anywhere in a message. |
 | `git-sync`                | Defines the full git add+commit+push procedure used by `/my-git-sync` and `/git sync`.    |
+| `skill-authoring`         | Conventions for writing skills in repos using the agents-sync-kit scaffolding (`.agents/skills/`, `repo-` command prefix, etc.). |
 
 ## First-time setup on a new machine
 
