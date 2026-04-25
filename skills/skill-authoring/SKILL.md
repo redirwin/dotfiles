@@ -1,7 +1,7 @@
 ---
 name: skill-authoring
 description: >-
-  Defines how to add or edit Agent Skills in repos using the agents-sync-kit
+  Defines how to add or edit Agent Skills in repos using the repo-agents-sync
   scaffolding (`.agents/skills/`): YAML frontmatter, folder naming,
   descriptions, links from the skill index, and style constraints. Use when
   creating a new skill, editing SKILL.md frontmatter, or aligning skills with
@@ -10,7 +10,7 @@ description: >-
 
 # Skill authoring
 
-Applies to any repo using the `agents-sync-kit` scaffolding (`.agents/skills/` + the `sync-agents` script). If the current repo doesn't have that structure, this skill doesn't apply.
+Applies to any repo using the `repo-agents-sync` scaffolding (`.agents/skills/` + the `sync-agents` script). If the current repo doesn't have that structure, this skill doesn't apply.
 
 Skills live in `.agents/skills/<skill-name>/` with a required `SKILL.md`. Optional: `reference.md`, `scripts/`, etc. The `sync-agents` script mirrors them into `.cursor/skills/`, `.claude/skills/`, and `.github/skills/`.
 
