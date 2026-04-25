@@ -7,6 +7,7 @@ Personal config that follows me from machine to machine. Currently scoped to use
 ```
 dotfiles/
   install.ps1     Windows installer - copies prompts and skills into each agent's user folder
+  install.sh      macOS installer - copies prompts and skills into each agent's user folder
   prompts/        Canonical source for personal slash commands (my-*.md)
   skills/         Canonical source for user-scoped agent skills (one folder each, with SKILL.md)
   README.md
@@ -53,7 +54,7 @@ Cursor and Copilot do not support user-scoped skills, so this layer covers Claud
 | `git-sync`                | Defines the full git add+commit+push procedure used by `/my-git-sync` and `/git sync`.                                            |
 | `skill-authoring`         | Conventions for writing skills in repos using the repo-agents-sync scaffolding (`.agents/skills/`, `repo-` command prefix, etc.). |
 
-## First-time setup on a new machine
+## First-time setup on a new Windows machine
 
 ```powershell
 git clone https://github.com/redirwin/dotfiles.git $HOME\dotfiles
@@ -66,12 +67,19 @@ If script execution is blocked, allow it for the current user once:
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
+## First-time setup on a new Mac
+
+```bash
+git clone https://github.com/redirwin/dotfiles.git ~/dotfiles
+bash ~/dotfiles/install.sh
+```
+
 ## Day-to-day workflow
 
 **Editing a prompt or skill:**
 
 1. Edit the file in `~/dotfiles/prompts/` or `~/dotfiles/skills/<name>/`.
-2. Re-run `powershell -File $HOME\dotfiles\install.ps1`.
+2. Re-run `powershell -File $HOME\dotfiles\install.ps1` on Windows or `bash ~/dotfiles/install.sh` on macOS.
 3. Restart the affected agent(s) so they re-scan the picker / skill index.
 
 **Adding a new prompt:**
@@ -127,6 +135,6 @@ This is a deliberate tradeoff (no implicit per-repo injection of personal config
 
 ## What's not in scope (yet)
 
-- macOS/Linux installer (`install.sh`).
+- Linux installer.
 - Shell profile, git config, editor settings.
 - Automatic Cursor coverage from dotfiles - see "Cursor coverage gap" above for the manual fallback.
