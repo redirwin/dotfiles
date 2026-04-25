@@ -100,6 +100,17 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 - Skill folders use lowercase-hyphen names matching the YAML `name`. Each contains exactly one `SKILL.md`; supporting files (`reference.md`, `scripts/`) are optional.
 - Prompts and skills must be self-contained: do not reference files that may not exist in an arbitrary repo. The whole point of user-scoping is that they work everywhere.
 
+## Pairs with repo-scoped tooling
+
+This repo handles the **user-scoped** layer only. Repos that need their own committed agent config (skills, commands, rules tied to that codebase) use a separate kit at [redirwin/repo-agents-sync](https://github.com/redirwin/repo-agents-sync), which mirrors a canonical `<repo>/.agents/` tree into `<repo>/.cursor/`, `<repo>/.claude/`, and `<repo>/.github/`.
+
+The two systems run **independently** and write to non-overlapping paths:
+
+- This repo's `install.ps1` writes to `~/.claude/`, `~/.codex/`, and the VS Code user folder.
+- `repo-agents-sync`'s `sync-agents.ps1` writes to a repo's `.cursor/`, `.claude/`, and `.github/`.
+
+Either can be used alone. When both are present, the agents merge both layers automatically. Naming conventions (`my-*` here vs. `repo-*` in the kit) keep slash commands from colliding.
+
 ## Cursor coverage gap
 
 Cursor has no user-scoped commands or skills folder, so the `/my-*` prompts and the user-scoped skills above (`shortcut-interpretation`, `git-sync`) do **not** automatically reach Cursor. They work in Claude Code and Codex on every machine where this dotfiles repo is installed; they do nothing in Cursor unless the current repo provides them.
