@@ -30,17 +30,9 @@ When a shortcut is present, treat it as the following full instruction (in addit
 
 | Shortcut | Expanded instruction |
 | -------- | ---------------------- |
-| `/onboard` | Familiarize yourself with the full project and codebase; then summarize the project in 200 words or less and be ready to help with updates. |
+| `/onboard` | Familiarize yourself with the full project and codebase in the current workspace; then summarize the project in 200 words or less and be ready to help with updates. If the repo is documentation-only or tiny, say so plainly. |
 | `/new convo` | Same as `/onboard`. |
 | `/nccp` | No code changes, please; provide analysis, guidance, suggestions, or commands only and do not modify files. Do not state in your reply that you are following this shortcut or name the shortcut. |
-| `/commit msg` | Review work since the last commit and produce one short, descriptive commit message appropriate for the changes. Do not run git or create a commit; only display the suggested message for the user to use. |
-| `/git sync` | Follow the `git-sync` skill: `git add -A`, commit with a short description of staged changes (only when there are staged changes), then `git push` (including push when there was nothing new to commit so prior unpushed commits still publish). |
-| `/sync agents` | If the current repo has a `scripts/sync-agents.ps1` (Windows) or `scripts/sync-agents.sh` (macOS/Linux), run it from repo root to mirror `.agents/` into `.cursor/`, `.claude/`, and `.github/`. If no such script exists, report that the current repo does not use the `.agents/` mirror pattern. |
-
-## Notes for the agent
-
-- **`/nccp`:** read-only exploration only; no writes, patches, or commits; no meta commentary about the shortcut.
-- **`/commit msg`:** infer changes from the working tree and conversation context without executing `git`; if diff is unavailable, say what is missing and suggest a message from described changes only.
-- **`/onboard` / `/new convo`:** scope to the workspace in context; if the repo is documentation-only or tiny, say so plainly in the summary.
-- **`/git sync`:** requires **git_write** and **network**; follow the linked skill; never force-push unless the user asked.
-- **`/sync agents`:** run the OS-appropriate script from repo root; never edit files under `.cursor/`, `.claude/`, or `.github/` directly (they are regenerated from `.agents/`).
+| `/commit msg` | Review work since the last commit using read-only git inspection and conversation context, then produce one short, descriptive commit message appropriate for the changes. Do not create a commit or modify git state; only display the suggested message for the user to use. If diff context is unavailable, say what is missing and suggest a message from described changes only. |
+| `/git sync` | Follow the `git-sync` skill; use that skill as the source of truth for procedure, safety rules, commit message format, upstream handling, and reporting. |
+| `/sync agents` | If the current repo has a `scripts/sync-agents.ps1` (Windows) or `scripts/sync-agents.sh` (macOS/Linux), run it from repo root to mirror `.agents/` into `.cursor/`, `.claude/`, and `.github/`. If no such script exists, report that the current repo does not use the `.agents/` mirror pattern. Never edit files under `.cursor/`, `.claude/`, or `.github/` directly; they are regenerated from `.agents/`. |

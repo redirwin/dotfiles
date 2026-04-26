@@ -15,6 +15,7 @@ set -euo pipefail
 # Skills (folder-based, each skill is a folder containing SKILL.md):
 #   - Claude Code : $HOME/.claude/skills/<skill-name>/
 #   - Codex CLI   : $HOME/.codex/skills/<skill-name>/
+#   - Copilot     : $HOME/.copilot/skills/<skill-name>/
 #
 # Re-run this script after editing anything in ~/dotfiles/prompts/ or
 # ~/dotfiles/skills/. The script copies (does not symlink) and never
@@ -174,6 +175,7 @@ if [[ -d "$SKILLS_SOURCE" ]]; then
     printf '\n=== Skills ===\n'
     copy_skills_to_target "Claude Code" "$HOME/.claude/skills" "${skill_source_names[@]}"
     copy_skills_to_target "Codex CLI" "$HOME/.codex/skills" "${skill_source_names[@]}"
+    copy_skills_to_target "Copilot" "$HOME/.copilot/skills" "${skill_source_names[@]}"
   fi
 else
   warn "Skills folder not found: $SKILLS_SOURCE - skipping."

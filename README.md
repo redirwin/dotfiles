@@ -29,22 +29,25 @@ The installer **copies** files into these target folders (no symlinks, no admin/
 
 Each `skills/<skill-name>/SKILL.md` becomes a user-scoped agent skill that the agent loads when the description matches the user's request. Skills are how an agent learns _behavioral procedures_ (e.g. "how to do a git sync"), as opposed to slash commands which are _one-shot prompt templates_.
 
-| Agent        | Target folder                    |
-| ------------ | -------------------------------- |
-| Claude Code  | `~/.claude/skills/<skill-name>/` |
-| OpenAI Codex | `~/.codex/skills/<skill-name>/`  |
+| Agent          | Target folder                       |
+| -------------- | ----------------------------------- |
+| Claude Code    | `~/.claude/skills/<skill-name>/`    |
+| OpenAI Codex   | `~/.codex/skills/<skill-name>/`     |
+| GitHub Copilot | `~/.copilot/skills/<skill-name>/`    |
 
-Cursor and Copilot do not support user-scoped skills, so this layer covers Claude Code and Codex only.
+Cursor does not support this repo's user-scoped skills or commands directly, so Cursor coverage uses the repo-scoped fallback described below.
 
 ## Current prompts
 
+Prompts are picker-friendly entry points. When a workflow also has a skill, the skill is the source of truth for detailed procedure and safety rules.
+
 | Command          | What it does                                                                                                                              |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `/my-onboard`    | Alias for `/my-new-convo`.                                                                                                                |
-| `/my-new-convo`  | Read root readme, AGENTS/CLAUDE.md, manifest, and folder structure; summarize the project in <=200 words and stand by for updates.        |
-| `/my-nccp`       | "No code changes, please" - read-only analysis only; no file writes.                                                                      |
-| `/my-commit-msg` | Review work since the last commit and propose one short commit message; do not run git.                                                   |
-| `/my-git-sync`   | `git add -A`, commit with a short summary derived from the staged diff (only if anything is staged), then `git push`. Never force-pushes. |
+| `/my-onboard`    | Entry point for the `/onboard` behavior in `shortcut-interpretation`.                                                                      |
+| `/my-new-convo`  | Entry point for the `/onboard` behavior in `shortcut-interpretation`.                                                                      |
+| `/my-nccp`       | Entry point for the `/nccp` behavior in `shortcut-interpretation`.                                                                         |
+| `/my-commit-msg` | Entry point for the `/commit msg` behavior in `shortcut-interpretation`.                                                                   |
+| `/my-git-sync`   | Entry point for the `git-sync` skill: stage all changes, commit only when needed, then push the current branch.                         |
 
 ## Current skills
 
@@ -104,9 +107,9 @@ bash ~/dotfiles/install.sh
 ## Conventions
 
 - Slash commands are named `my-<name>.md` so they cannot collide with native commands (`/init`, `/review`) or with repo-scoped commands (`/repo-*`).
-- Prompt bodies are plain markdown; no YAML frontmatter is required for any of the three agents to recognize the file as a command.
+- Prompt bodies are plain markdown; no YAML frontmatter is required for any of the three agents to recognize the file as a command. Keep them short when they are picker aliases for a skill-owned behavior.
 - Skill folders use lowercase-hyphen names matching the YAML `name`. Each contains exactly one `SKILL.md`; supporting files (`reference.md`, `scripts/`) are optional.
-- Prompts and skills must be self-contained: do not reference files that may not exist in an arbitrary repo. The whole point of user-scoping is that they work everywhere.
+- Prompts and skills must not reference repo-local files that may not exist in an arbitrary repo. They may reference user-scoped skills installed by this repo.
 
 ## Pairs with repo-scoped tooling
 
@@ -114,14 +117,14 @@ This repo handles the **user-scoped** layer only. Repos that need their own comm
 
 The two systems run **independently** and write to non-overlapping paths:
 
-- This repo's `install.ps1` writes to `~/.claude/`, `~/.codex/`, and the VS Code user folder.
+- This repo's installers write to `~/.claude/`, `~/.codex/`, `~/.copilot/skills/`, and the VS Code user prompts folder.
 - `repo-agents-sync`'s `sync-agents.ps1` writes to a repo's `.cursor/`, `.claude/`, and `.github/`.
 
 Either can be used alone. When both are present, the agents merge both layers automatically. Naming conventions (`my-*` here vs. `repo-*` in the kit) keep slash commands from colliding.
 
 ## Cursor coverage gap
 
-Cursor has no user-scoped commands or skills folder, so the `/my-*` prompts and the user-scoped skills above (`shortcut-interpretation`, `git-sync`) do **not** automatically reach Cursor. They work in Claude Code and Codex on every machine where this dotfiles repo is installed; they do nothing in Cursor unless the current repo provides them.
+Cursor has no user-scoped commands or skills folder, so the `/my-*` prompts and the user-scoped skills above (`shortcut-interpretation`, `git-sync`) do **not** automatically reach Cursor. They work in Claude Code, Codex, and Copilot on every machine where this dotfiles repo is installed; they do nothing in Cursor unless the current repo provides them.
 
 This is a deliberate tradeoff (no implicit per-repo injection of personal config). When you actually need a `/my-*` prompt or user-scoped skill to work in Cursor for a specific repo, use the **tactical fallback**:
 

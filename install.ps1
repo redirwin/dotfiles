@@ -14,6 +14,7 @@ Prompts (file-based, one .md per command):
 Skills (folder-based, each skill is a folder containing SKILL.md):
   - Claude Code : $HOME\.claude\skills\<skill-name>\
   - Codex CLI   : $HOME\.codex\skills\<skill-name>\
+  - Copilot     : $HOME\.copilot\skills\<skill-name>\
 
 Re-run this script after editing anything in ~/dotfiles/prompts/ or
 ~/dotfiles/skills/. The script copies (does not symlink) and never
@@ -80,6 +81,7 @@ if (Test-Path $PromptsSource) {
 $SkillTargets = @(
     [pscustomobject]@{ Name = 'Claude Code'; Path = Join-Path $HOME '.claude\skills' }
     [pscustomobject]@{ Name = 'Codex CLI';   Path = Join-Path $HOME '.codex\skills'  }
+    [pscustomobject]@{ Name = 'Copilot';     Path = Join-Path $HOME '.copilot\skills' }
 )
 
 $skillOrphans = @{}
