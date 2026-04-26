@@ -243,7 +243,10 @@ if (Test-Path $McpSource) {
     foreach ($existingName in $existingCodex) {
         if ($canonicalNames -notcontains $existingName) {
             Write-Host "    removing orphan: $existingName" -ForegroundColor DarkYellow
-            $orphanPattern = "(?ms)^\s*\[mcp_servers\.$([regex]::Escape($existingName))\][^\[]*"
+            # Match the section header through to the next line starting with '['
+            # (a real TOML section header) or end of string. Avoids false-stopping
+            # at '[' characters inside values like `args = ["foo"]`.
+            $orphanPattern = "(?ms)^\s*\[mcp_servers\.$([regex]::Escape($existingName))\].*?(?=^\s*\[|\z)"
             $codexText = [regex]::Replace($codexText, $orphanPattern, '')
         }
     }
@@ -265,7 +268,8 @@ if (Test-Path $McpSource) {
             continue
         }
         # Strip any existing block for this name (header line + following lines until next [section] or EOF).
-        $pattern = "(?ms)^\s*\[mcp_servers\.$([regex]::Escape($name))\][^\[]*"
+        # Lookahead matches a line starting with '[' so we don't false-stop at '[' inside values like `args = ["foo"]`.
+        $pattern = "(?ms)^\s*\[mcp_servers\.$([regex]::Escape($name))\].*?(?=^\s*\[|\z)"
         $codexText = [regex]::Replace($codexText, $pattern, '')
         # Append fresh block, ensuring trailing newline separation.
         if ($codexText.Length -gt 0 -and $codexText[-1] -ne "`n") { $codexText += "`r`n" }

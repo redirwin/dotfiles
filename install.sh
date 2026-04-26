@@ -292,7 +292,9 @@ removed = []
 for name in existing:
     if name not in canonical:
         removed.append(name)
-        text = re.sub(r"(?ms)^[ \t]*\[mcp_servers\." + re.escape(name) + r"\][^\[]*", "", text)
+        # Match through to next line starting with '[' (real TOML header) or end of string,
+        # so we don't false-stop at '[' inside values like `args = ["foo"]`.
+        text = re.sub(r"(?ms)^[ \t]*\[mcp_servers\." + re.escape(name) + r"\].*?(?=^[ \t]*\[|\Z)", "", text)
 text = re.sub(r"\n{3,}", "\n\n", text).lstrip()
 pathlib.Path(path).write_text(text, encoding="utf-8")
 for name in removed:
@@ -321,7 +323,9 @@ for line in sys.stdin:
     else:
         sys.stderr.write(f"    entry '{name}' has neither 'url' nor 'command'; skipped (Codex).\n")
         continue
-    pattern = re.compile(r"(?ms)^[ \t]*\[mcp_servers\." + re.escape(name) + r"\][^\[]*")
+    # Match through to next line starting with '[' (real TOML header) or end of string,
+    # so we don't false-stop at '[' inside values like `args = ["foo"]`.
+    pattern = re.compile(r"(?ms)^[ \t]*\[mcp_servers\." + re.escape(name) + r"\].*?(?=^[ \t]*\[|\Z)")
     text = pattern.sub("", text)
     text = text.rstrip() + ("\n\n" if text.strip() else "")
     text += block
