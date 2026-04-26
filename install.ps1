@@ -123,10 +123,101 @@ if (Test-Path $SkillsSource) {
     Write-Warning "Skills folder not found: $SkillsSource - skipping."
 }
 
+# ---------- mcp ----------
+#
+# User-level MCP servers, mirrored from ~/dotfiles/mcp.json into each agent.
+# Canonical shape uses `mcpServers` (matches Claude/Cursor); VS Code key is
+# renamed to `servers` on emit; Codex gets [mcp_servers.<name>] TOML blocks
+# managed in-place inside ~/.codex/config.toml.
+#
+# Cursor and Copilot user-level mcp.json files are treated as
+# dotfiles-managed (full overwrite). Claude Code and Codex are merged
+# carefully because their config files hold unrelated settings.
+
+$McpSource = Join-Path $Root 'mcp.json'
+$mcpCount  = 0
+
+if (Test-Path $McpSource) {
+    Write-Host ""
+    Write-Host "=== MCP servers ===" -ForegroundColor White
+
+    $mcpText = [System.IO.File]::ReadAllText($McpSource)
+    $mcp     = $mcpText | ConvertFrom-Json
+    $entries = @()
+    if ($mcp.PSObject.Properties.Name -contains 'mcpServers') {
+        $entries = $mcp.mcpServers.PSObject.Properties
+    }
+    $mcpCount = @($entries).Count
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
+    # Cursor (user-level, MCP-only file -> overwrite)
+    $cursorPath = Join-Path $HOME '.cursor\mcp.json'
+    New-Item -ItemType Directory -Force -Path (Split-Path $cursorPath) | Out-Null
+    [System.IO.File]::WriteAllText($cursorPath, $mcpText, $utf8NoBom)
+    Write-Host "-> Cursor: $cursorPath" -ForegroundColor Cyan
+    Write-Host "    wrote $mcpCount entry/entries"
+
+    # VS Code Copilot (user-level) -- rename top-level key
+    $vscodePath = Join-Path $env:APPDATA 'Code\User\mcp.json'
+    New-Item -ItemType Directory -Force -Path (Split-Path $vscodePath) | Out-Null
+    $vscodeText = [regex]::Replace($mcpText, '"mcpServers"\s*:', '"servers":')
+    [System.IO.File]::WriteAllText($vscodePath, $vscodeText, $utf8NoBom)
+    Write-Host "-> Copilot (VS Code): $vscodePath" -ForegroundColor Cyan
+    Write-Host "    wrote $mcpCount entry/entries (key renamed to 'servers')"
+
+    # Claude Code -- use the CLI so we don't touch unrelated settings
+    Write-Host "-> Claude Code: via 'claude mcp' CLI (user scope)" -ForegroundColor Cyan
+    $claudeCli = Get-Command claude -ErrorAction SilentlyContinue
+    if (-not $claudeCli) {
+        Write-Warning "    'claude' CLI not on PATH; skipping Claude Code MCP install."
+    } else {
+        foreach ($entry in $entries) {
+            $name = $entry.Name
+            $cfg  = $entry.Value
+            $url  = $cfg.url
+            $type = if ($cfg.PSObject.Properties.Name -contains 'type') { $cfg.type } else { 'http' }
+            # Idempotent: remove (ignore "not found" on first run) then add.
+            # Route through cmd so stderr is discarded by the OS — PS 5.1 wraps
+            # native stderr as a terminating error under ErrorActionPreference=Stop.
+            & cmd /c "claude mcp remove $name --scope user >nul 2>&1"
+            & claude mcp add --scope user --transport $type $name $url | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "    $name  ->  $url ($type)"
+            } else {
+                Write-Warning "    failed to add '$name' to Claude Code"
+            }
+        }
+    }
+
+    # Codex -- manage [mcp_servers.<name>] blocks in ~/.codex/config.toml
+    $codexCfg = Join-Path $HOME '.codex\config.toml'
+    New-Item -ItemType Directory -Force -Path (Split-Path $codexCfg) | Out-Null
+    if (-not (Test-Path $codexCfg)) {
+        [System.IO.File]::WriteAllText($codexCfg, '', $utf8NoBom)
+    }
+    $codexText = [System.IO.File]::ReadAllText($codexCfg)
+    foreach ($entry in $entries) {
+        $name = $entry.Name
+        $cfg  = $entry.Value
+        $block = "[mcp_servers.$name]`r`nurl = `"$($cfg.url)`"`r`n"
+        # Strip any existing block for this name (header line + following lines until next [section] or EOF).
+        $pattern = "(?ms)^\s*\[mcp_servers\.$([regex]::Escape($name))\][^\[]*"
+        $codexText = [regex]::Replace($codexText, $pattern, '')
+        # Append fresh block, ensuring trailing newline separation.
+        if ($codexText.Length -gt 0 -and $codexText[-1] -ne "`n") { $codexText += "`r`n" }
+        $codexText += "`r`n" + $block
+    }
+    # Collapse runs of >2 blank lines for tidiness.
+    $codexText = [regex]::Replace($codexText, '(\r?\n){3,}', "`r`n`r`n").TrimStart()
+    [System.IO.File]::WriteAllText($codexCfg, $codexText, $utf8NoBom)
+    Write-Host "-> Codex: $codexCfg" -ForegroundColor Cyan
+    Write-Host "    wrote/updated $mcpCount [mcp_servers.*] block(s)"
+}
+
 # ---------- summary ----------
 
 Write-Host ""
-Write-Host "Done. $promptCount prompt(s), $skillCount skill(s) synced." -ForegroundColor Green
+Write-Host "Done. $promptCount prompt(s), $skillCount skill(s), $mcpCount MCP server(s) synced." -ForegroundColor Green
 
 if ($promptOrphans.Count -gt 0) {
     Write-Host ""

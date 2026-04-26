@@ -6,10 +6,11 @@ Personal config that follows me from machine to machine. Currently scoped to use
 
 ```
 dotfiles/
-  install.ps1     Windows installer - copies prompts and skills into each agent's user folder
-  install.sh      macOS installer - copies prompts and skills into each agent's user folder
+  install.ps1     Windows installer - syncs prompts, skills, and MCP servers into each agent's user-level config
+  install.sh      macOS installer - syncs prompts, skills, and MCP servers into each agent's user-level config
   prompts/        Canonical source for personal slash commands (my-*.md)
   skills/         Canonical source for user-scoped agent skills (one folder each, with SKILL.md)
+  mcp.json        Canonical source for user-scoped MCP servers (mcpServers map)
   README.md
 ```
 
@@ -36,6 +37,23 @@ Each `skills/<skill-name>/SKILL.md` becomes a user-scoped agent skill that the a
 | GitHub Copilot | `~/.copilot/skills/<skill-name>/`    |
 
 Cursor does not support this repo's user-scoped skills or commands directly, so Cursor coverage uses the repo-scoped fallback described below.
+
+## How the MCP servers work
+
+`mcp.json` is the canonical user-level set of MCP servers — anything in this file becomes available to every agent on every machine where the installer runs. Use it for MCPs that should follow you everywhere; for project-specific MCPs, use a per-repo `.mcp.json` (or a `.agents/mcp.json` if the repo uses repo-agents-sync).
+
+The installer mirrors `mcp.json` into each tool's expected user-level config:
+
+| Agent          | Target                                              | Strategy |
+| -------------- | --------------------------------------------------- | -------- |
+| Cursor         | `~/.cursor/mcp.json`                                | Full overwrite (file is treated as dotfiles-managed) |
+| VS Code Copilot| `%APPDATA%\Code\User\mcp.json` (Win), `~/Library/Application Support/Code/User/mcp.json` (mac) | Full overwrite, top-level key renamed `mcpServers` → `servers` |
+| Claude Code    | `~/.claude.json` mcpServers section                 | Managed via `claude mcp` CLI so unrelated settings are preserved |
+| Codex CLI      | `~/.codex/config.toml` `[mcp_servers.<name>]` blocks | Managed in-place; other TOML tables are preserved |
+
+Cursor and Copilot's `mcp.json` files are treated as **dotfiles-managed** — if you've manually added MCPs there outside dotfiles, the installer will overwrite them. Move those entries into `~/dotfiles/mcp.json` instead.
+
+The Codex install requires Python 3 (used for safe TOML section editing). The Bash installer additionally needs `jq`.
 
 ## Current prompts
 
@@ -79,11 +97,11 @@ bash ~/dotfiles/install.sh
 
 ## Day-to-day workflow
 
-**Editing a prompt or skill:**
+**Editing a prompt, skill, or MCP server:**
 
-1. Edit the file in `~/dotfiles/prompts/` or `~/dotfiles/skills/<name>/`.
+1. Edit the file in `~/dotfiles/prompts/`, `~/dotfiles/skills/<name>/`, or `~/dotfiles/mcp.json`.
 2. Re-run `powershell -File $HOME\dotfiles\install.ps1` on Windows or `bash ~/dotfiles/install.sh` on macOS.
-3. Restart the affected agent(s) so they re-scan the picker / skill index.
+3. Restart the affected agent(s) so they re-scan the picker / skill index / MCP servers.
 
 **Adding a new prompt:**
 

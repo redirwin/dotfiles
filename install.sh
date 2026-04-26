@@ -181,9 +181,79 @@ else
   warn "Skills folder not found: $SKILLS_SOURCE - skipping."
 fi
 
+# ---------- mcp ----------
+#
+# User-level MCP servers, mirrored from ~/dotfiles/mcp.json into each agent.
+# Cursor and Copilot user-level mcp.json files are dotfiles-managed (full
+# overwrite). Claude Code is updated via `claude mcp` so other settings in
+# ~/.claude.json aren't touched. Codex is managed by replacing
+# [mcp_servers.<name>] blocks inside ~/.codex/config.toml.
+#
+# Requires `jq` for JSON handling.
+
+MCP_SOURCE="$ROOT/mcp.json"
+mcp_count=0
+
+if [[ -f "$MCP_SOURCE" ]]; then
+  if ! command -v jq >/dev/null 2>&1; then
+    warn "jq not found; skipping MCP sync. Install jq (brew install jq) to enable."
+  else
+    printf '\n=== MCP servers ===\n'
+    mcp_count="$(jq '.mcpServers | length' "$MCP_SOURCE")"
+
+    # Cursor (user-level)
+    cursor_path="$HOME/.cursor/mcp.json"
+    mkdir -p "$(dirname "$cursor_path")"
+    cp "$MCP_SOURCE" "$cursor_path"
+    printf -- '-> Cursor: %s\n    wrote %s entry/entries\n' "$cursor_path" "$mcp_count"
+
+    # VS Code Copilot (user-level) -- rename top-level mcpServers -> servers
+    vscode_path="$HOME/Library/Application Support/Code/User/mcp.json"
+    mkdir -p "$(dirname "$vscode_path")"
+    jq '{servers: .mcpServers}' "$MCP_SOURCE" > "$vscode_path"
+    printf -- '-> Copilot (VS Code): %s\n    wrote %s entry/entries (key renamed to servers)\n' "$vscode_path" "$mcp_count"
+
+    # Claude Code (user-level) -- via the CLI
+    printf -- '-> Claude Code: via "claude mcp" CLI (user scope)\n'
+    if ! command -v claude >/dev/null 2>&1; then
+      warn "    'claude' CLI not on PATH; skipping Claude Code MCP install."
+    else
+      while IFS=$'\t' read -r name url type; do
+        [[ -z "$type" || "$type" == "null" ]] && type="http"
+        claude mcp remove "$name" --scope user >/dev/null 2>&1 || true
+        if claude mcp add --scope user --transport "$type" "$name" "$url" >/dev/null; then
+          printf '    %s  ->  %s (%s)\n' "$name" "$url" "$type"
+        else
+          warn "    failed to add '$name' to Claude Code"
+        fi
+      done < <(jq -r '.mcpServers | to_entries[] | [.key, .value.url, (.value.type // "http")] | @tsv' "$MCP_SOURCE")
+    fi
+
+    # Codex -- manage [mcp_servers.<name>] blocks in ~/.codex/config.toml
+    codex_cfg="$HOME/.codex/config.toml"
+    mkdir -p "$(dirname "$codex_cfg")"
+    [[ -f "$codex_cfg" ]] || : > "$codex_cfg"
+    while IFS=$'\t' read -r name url; do
+      # Remove any existing block for this name (header line + body until next [section] or EOF)
+      python3 - "$codex_cfg" "$name" "$url" <<'PY'
+import re, sys, pathlib
+path, name, url = sys.argv[1], sys.argv[2], sys.argv[3]
+text = pathlib.Path(path).read_text(encoding="utf-8")
+pattern = re.compile(r"(?ms)^[ \t]*\[mcp_servers\." + re.escape(name) + r"\][^\[]*")
+text = pattern.sub("", text)
+text = text.rstrip() + ("\n\n" if text.strip() else "")
+text += f"[mcp_servers.{name}]\nurl = \"{url}\"\n"
+text = re.sub(r"\n{3,}", "\n\n", text).lstrip()
+pathlib.Path(path).write_text(text, encoding="utf-8")
+PY
+    done < <(jq -r '.mcpServers | to_entries[] | [.key, .value.url] | @tsv' "$MCP_SOURCE")
+    printf -- '-> Codex: %s\n    wrote/updated %s [mcp_servers.*] block(s)\n' "$codex_cfg" "$mcp_count"
+  fi
+fi
+
 # ---------- summary ----------
 
-printf '\nDone. %s prompt(s), %s skill(s) synced.\n' "$prompt_count" "$skill_count"
+printf '\nDone. %s prompt(s), %s skill(s), %s MCP server(s) synced.\n' "$prompt_count" "$skill_count" "$mcp_count"
 
 if [[ -n "$prompt_orphans" ]]; then
   printf '\nPrompt files in target folders NOT overwritten by this run (no matching source in ~/dotfiles/prompts/):\n'
