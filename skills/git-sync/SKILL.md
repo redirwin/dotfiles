@@ -27,14 +27,24 @@ End-to-end workflow for the current git repository (workspace root): stage every
    Check with `git diff --cached --quiet` (exit 0 means no staged changes) or equivalent.
 
 3. **Commit message format**
-   A **short description of the staged changes** - about **3 to 15 words**, aim **under ~90 characters**. No `sync` prefix, no timestamp, no separator.
+   A **short subject line** describing the staged changes - aim **under ~72 characters** so it reads cleanly in `git log --oneline`. No `sync` prefix, no timestamp, no separator.
 
-   Derive the description from **`git diff --cached`** (for example `--name-status` and/or `--stat`): name the areas or themes (folders, features, add/remove), not a bare dump of every path unless there are very few files. If both renames and edits matter, say so in plain language.
+   Derive the subject from **`git diff --cached`** (for example `--name-status` and/or `--stat`): name the areas or themes (folders, features, add/remove), not a bare dump of every path unless there are very few files.
 
-   Full message example: `git-sync skill: drop sync prefix and timestamp; update shortcut docs`
+   **Optional body:** when the change spans multiple unrelated themes or warrants more detail than fits in the subject, add a blank line after the subject and then a short bulleted body. Keep the body terse - one bullet per theme, not a changelog of every file. Skip the body entirely for single-theme changes.
+
+   Subject-only example: `git-sync skill: drop sync prefix and timestamp`
+
+   Subject + body example:
+   ```
+   git-sync skill: relax commit message rules
+
+   - allow optional body for multi-theme syncs
+   - replace 3-15 word cap with ~72 char subject
+   ```
 
 4. **`git commit`** (only when step 2 showed staged changes)
-   `git commit -m "..."` with the full single-line message from step 3. If a filename could break shell quoting, use `git commit -F` with a temp file containing the message instead of `-m`.
+   `git commit -m "..."` with a subject-only message, or `git commit -m "subject" -m "body"` when including a body. If a filename or message content could break shell quoting, use `git commit -F` with a temp file containing the full message instead.
 
 5. **`git push`**
    Push the **current branch** to its **upstream** (plain `git push`). Run **even when** no new commit was made, so **unpushed commits** from earlier work still reach the remote. If push fails because **no upstream** is set, retry once with `git push -u origin HEAD` when `origin` exists, or report the error and stop.
