@@ -1,6 +1,6 @@
 # My dotfiles
 
-Personal config that follows me from machine to machine. Currently scoped to user-level slash commands and shared agent skills for AI coding tools; can grow to cover shell, git, and editor config later.
+Personal config that follows me from machine to machine. Currently scoped to user-level slash commands, shared agent skills, and MCP servers for AI coding tools; can grow to cover shell, git, and editor config later.
 
 ## What's here
 
@@ -52,6 +52,8 @@ The installer mirrors `mcp.json` into each tool's expected user-level config:
 | Codex CLI      | `~/.codex/config.toml` `[mcp_servers.<name>]` blocks | Managed in-place; other TOML tables are preserved |
 
 Cursor and Copilot's `mcp.json` files are treated as **dotfiles-managed** — if you've manually added MCPs there outside dotfiles, the installer will overwrite them. Move those entries into `~/dotfiles/mcp.json` instead.
+
+**Removed entries are pruned from every agent.** Cursor and Copilot drop them via the full overwrite; Claude Code and Codex are explicitly cleaned: the installer reads the user-scope MCP list from `~/.claude.json` and `~/.codex/config.toml`, compares against `mcp.json`, and removes any orphan entries it finds. Each removal is printed (`removing orphan: <name>`) so a surprise prune is visible in the install output. **This means anything you add to user-scope Claude Code or Codex MCPs outside dotfiles will be wiped on the next install** — manage user-level MCPs from `mcp.json`, not by hand.
 
 The Codex install requires Python 3 (used for safe TOML section editing). The Bash installer additionally needs `jq`.
 
@@ -122,6 +124,12 @@ bash ~/dotfiles/install.sh
 3. Manually delete those orphans (the installer never deletes from targets, by design).
 4. Commit the removal.
 
+**Removing an MCP server:**
+
+1. Delete the entry from `~/dotfiles/mcp.json` (or empty the `mcpServers` object entirely).
+2. Re-run the installer. Cursor, Copilot, Claude Code, and Codex all auto-prune the removed entries; each removal prints as `removing orphan: <name>`.
+3. Commit the removal.
+
 ## Conventions
 
 - Slash commands are named `my-<name>.md` so they cannot collide with native commands (`/init`, `/review`) or with repo-scoped commands (`/repo-*`).
@@ -131,18 +139,20 @@ bash ~/dotfiles/install.sh
 
 ## Pairs with repo-scoped tooling
 
-This repo handles the **user-scoped** layer only. Repos that need their own committed agent config (skills, commands, rules tied to that codebase) use a separate kit at [redirwin/repo-agents-sync](https://github.com/redirwin/repo-agents-sync), which mirrors a canonical `<repo>/.agents/` tree into `<repo>/.cursor/`, `<repo>/.claude/`, and `<repo>/.github/`.
+This repo handles the **user-scoped** layer only. Repos that need their own committed agent config (skills, commands, rules, MCP servers tied to that codebase) use a separate kit at [redirwin/repo-agents-sync](https://github.com/redirwin/repo-agents-sync), which mirrors a canonical `<repo>/.agents/` tree into `<repo>/.cursor/`, `<repo>/.claude/`, `<repo>/.github/`, `<repo>/.vscode/`, and `<repo>/.mcp.json`.
 
 The two systems run **independently** and write to non-overlapping paths:
 
-- This repo's installers write to `~/.claude/`, `~/.codex/`, `~/.copilot/skills/`, and the VS Code user prompts folder.
-- `repo-agents-sync`'s `sync-agents.ps1` writes to a repo's `.cursor/`, `.claude/`, and `.github/`.
+- This repo's installers write to user-scoped paths: `~/.claude/`, `~/.codex/`, `~/.copilot/skills/`, the VS Code user prompts folder, and (for MCP servers) `~/.cursor/mcp.json`, the VS Code user `mcp.json`, `~/.claude.json`'s `mcpServers` section, and `~/.codex/config.toml`'s `[mcp_servers.*]` blocks.
+- `repo-agents-sync`'s `sync-agents.ps1` writes to repo-scoped paths: `<repo>/.cursor/`, `<repo>/.claude/`, `<repo>/.github/`, `<repo>/.vscode/mcp.json`, and `<repo>/.mcp.json`.
 
 Either can be used alone. When both are present, the agents merge both layers automatically. Naming conventions (`my-*` here vs. `repo-*` in the kit) keep slash commands from colliding.
 
 ## Cursor coverage gap
 
 Cursor has no user-scoped commands or skills folder, so the `/my-*` prompts and the user-scoped skills above (`shortcut-interpretation`, `git-sync`) do **not** automatically reach Cursor. They work in Claude Code, Codex, and Copilot on every machine where this dotfiles repo is installed; they do nothing in Cursor unless the current repo provides them.
+
+**MCP servers are an exception** — Cursor *does* support a user-scoped `~/.cursor/mcp.json`, so MCPs from `~/dotfiles/mcp.json` reach Cursor like every other agent. The gap below applies to prompts and skills only.
 
 This is a deliberate tradeoff (no implicit per-repo injection of personal config). When you actually need a `/my-*` prompt or user-scoped skill to work in Cursor for a specific repo, use the **tactical fallback**:
 

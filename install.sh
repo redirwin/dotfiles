@@ -213,6 +213,9 @@ if [[ -f "$MCP_SOURCE" ]]; then
     jq '{servers: .mcpServers}' "$MCP_SOURCE" > "$vscode_path"
     printf -- '-> Copilot (VS Code): %s\n    wrote %s entry/entries (key renamed to servers)\n' "$vscode_path" "$mcp_count"
 
+    # Canonical name set, used by orphan-cleanup steps below
+    canonical_names="$(jq -r '.mcpServers | keys[]' "$MCP_SOURCE")"
+
     # Claude Code (user-level) -- via the CLI
     printf -- '-> Claude Code: via "claude mcp" CLI (user scope)\n'
     if ! command -v claude >/dev/null 2>&1; then
@@ -227,14 +230,43 @@ if [[ -f "$MCP_SOURCE" ]]; then
           warn "    failed to add '$name' to Claude Code"
         fi
       done < <(jq -r '.mcpServers | to_entries[] | [.key, .value.url, (.value.type // "http")] | @tsv' "$MCP_SOURCE")
+      # Orphan cleanup: read user-scope MCPs straight from ~/.claude.json
+      # and remove any not in canonical.
+      claude_json="$HOME/.claude.json"
+      if [[ -f "$claude_json" ]]; then
+        installed_claude="$(jq -r '.mcpServers // {} | keys[]' "$claude_json" 2>/dev/null || true)"
+        while IFS= read -r installed_name; do
+          [[ -z "$installed_name" ]] && continue
+          if ! grep -Fxq "$installed_name" <<<"$canonical_names"; then
+            printf '    removing orphan: %s\n' "$installed_name"
+            claude mcp remove "$installed_name" --scope user >/dev/null 2>&1 || true
+          fi
+        done <<<"$installed_claude"
+      fi
     fi
 
     # Codex -- manage [mcp_servers.<name>] blocks in ~/.codex/config.toml
     codex_cfg="$HOME/.codex/config.toml"
     mkdir -p "$(dirname "$codex_cfg")"
     [[ -f "$codex_cfg" ]] || : > "$codex_cfg"
+    # Orphan cleanup (Codex): scan existing blocks; strip any name not in canonical.
+    python3 - "$codex_cfg" <<PY
+import re, sys, pathlib
+path = sys.argv[1]
+canonical = set("""$canonical_names""".split())
+text = pathlib.Path(path).read_text(encoding="utf-8")
+existing = re.findall(r"(?m)^[ \t]*\[mcp_servers\.([^\]]+)\]", text)
+removed = []
+for name in existing:
+    if name not in canonical:
+        removed.append(name)
+        text = re.sub(r"(?ms)^[ \t]*\[mcp_servers\." + re.escape(name) + r"\][^\[]*", "", text)
+text = re.sub(r"\n{3,}", "\n\n", text).lstrip()
+pathlib.Path(path).write_text(text, encoding="utf-8")
+for name in removed:
+    print(f"    removing orphan: {name}")
+PY
     while IFS=$'\t' read -r name url; do
-      # Remove any existing block for this name (header line + body until next [section] or EOF)
       python3 - "$codex_cfg" "$name" "$url" <<'PY'
 import re, sys, pathlib
 path, name, url = sys.argv[1], sys.argv[2], sys.argv[3]

@@ -168,6 +168,7 @@ if (Test-Path $McpSource) {
     # Claude Code -- use the CLI so we don't touch unrelated settings
     Write-Host "-> Claude Code: via 'claude mcp' CLI (user scope)" -ForegroundColor Cyan
     $claudeCli = Get-Command claude -ErrorAction SilentlyContinue
+    $canonicalNames = @($entries | ForEach-Object { $_.Name })
     if (-not $claudeCli) {
         Write-Warning "    'claude' CLI not on PATH; skipping Claude Code MCP install."
     } else {
@@ -187,6 +188,25 @@ if (Test-Path $McpSource) {
                 Write-Warning "    failed to add '$name' to Claude Code"
             }
         }
+        # Orphan cleanup: read user-scope MCPs straight from ~/.claude.json
+        # (claude mcp list shows all scopes/sources; .claude.json mcpServers is
+        # the user-scope source of truth) and remove any not in canonical.
+        $claudeJsonPath = Join-Path $HOME '.claude.json'
+        if (Test-Path $claudeJsonPath) {
+            try {
+                $claudeJson = Get-Content $claudeJsonPath -Raw | ConvertFrom-Json
+                if ($claudeJson.PSObject.Properties.Name -contains 'mcpServers' -and $claudeJson.mcpServers) {
+                    $installed = @($claudeJson.mcpServers.PSObject.Properties.Name)
+                    $orphans = $installed | Where-Object { $canonicalNames -notcontains $_ }
+                    foreach ($orphan in $orphans) {
+                        Write-Host "    removing orphan: $orphan" -ForegroundColor DarkYellow
+                        & cmd /c "claude mcp remove $orphan --scope user >nul 2>&1"
+                    }
+                }
+            } catch {
+                Write-Warning "    could not parse $claudeJsonPath for orphan check; skipped."
+            }
+        }
     }
 
     # Codex -- manage [mcp_servers.<name>] blocks in ~/.codex/config.toml
@@ -196,6 +216,18 @@ if (Test-Path $McpSource) {
         [System.IO.File]::WriteAllText($codexCfg, '', $utf8NoBom)
     }
     $codexText = [System.IO.File]::ReadAllText($codexCfg)
+    # Orphan cleanup (Codex): scan existing [mcp_servers.<name>] blocks; strip any
+    # name not in canonical. Done before re-writing canonical entries so the next
+    # loop just adds them back fresh.
+    $existingCodex = [regex]::Matches($codexText, '(?ms)^\s*\[mcp_servers\.([^\]]+)\]') |
+                     ForEach-Object { $_.Groups[1].Value }
+    foreach ($existingName in $existingCodex) {
+        if ($canonicalNames -notcontains $existingName) {
+            Write-Host "    removing orphan: $existingName" -ForegroundColor DarkYellow
+            $orphanPattern = "(?ms)^\s*\[mcp_servers\.$([regex]::Escape($existingName))\][^\[]*"
+            $codexText = [regex]::Replace($codexText, $orphanPattern, '')
+        }
+    }
     foreach ($entry in $entries) {
         $name = $entry.Name
         $cfg  = $entry.Value
