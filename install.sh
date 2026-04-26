@@ -216,20 +216,52 @@ if [[ -f "$MCP_SOURCE" ]]; then
     # Canonical name set, used by orphan-cleanup steps below
     canonical_names="$(jq -r '.mcpServers | keys[]' "$MCP_SOURCE")"
 
-    # Claude Code (user-level) -- via the CLI
+    # Claude Code (user-level) -- via the CLI.
+    # Supports both HTTP (`url`) and stdio (`command` + `args`) entries.
     printf -- '-> Claude Code: via "claude mcp" CLI (user scope)\n'
     if ! command -v claude >/dev/null 2>&1; then
       warn "    'claude' CLI not on PATH; skipping Claude Code MCP install."
     else
-      while IFS=$'\t' read -r name url type; do
-        [[ -z "$type" || "$type" == "null" ]] && type="http"
-        claude mcp remove "$name" --scope user >/dev/null 2>&1 || true
-        if claude mcp add --scope user --transport "$type" "$name" "$url" >/dev/null; then
-          printf '    %s  ->  %s (%s)\n' "$name" "$url" "$type"
+      # Emit one record per line: <name>\t<kind>\t<value>
+      # kind is 'http' (value is "<url> <type>") or 'stdio' (value is "<command>\t<arg1>\t<arg2>...").
+      jq -r '
+        .mcpServers | to_entries[] |
+        if .value.url then
+          [.key, "http", .value.url, (.value.type // "http")] | @tsv
+        elif .value.command then
+          ([.key, "stdio", .value.command] + (.value.args // [])) | @tsv
         else
-          warn "    failed to add '$name' to Claude Code"
-        fi
-      done < <(jq -r '.mcpServers | to_entries[] | [.key, .value.url, (.value.type // "http")] | @tsv' "$MCP_SOURCE")
+          [.key, "skip", "no url or command"] | @tsv
+        end
+      ' "$MCP_SOURCE" |
+      while IFS=$'\t' read -r name kind rest1 rest2 rest3 rest4 rest5 rest6 rest7 rest8; do
+        claude mcp remove "$name" --scope user >/dev/null 2>&1 || true
+        case "$kind" in
+          http)
+            url="$rest1"; type="$rest2"
+            if claude mcp add --scope user --transport "$type" "$name" "$url" >/dev/null; then
+              printf '    %s  ->  %s (%s)\n' "$name" "$url" "$type"
+            else
+              warn "    failed to add '$name' to Claude Code"
+            fi
+            ;;
+          stdio)
+            cmd="$rest1"
+            cli_args=()
+            for a in "$rest2" "$rest3" "$rest4" "$rest5" "$rest6" "$rest7" "$rest8"; do
+              [[ -n "$a" ]] && cli_args+=("$a")
+            done
+            if claude mcp add --scope user "$name" -- "$cmd" "${cli_args[@]}" >/dev/null; then
+              printf '    %s  ->  %s %s (stdio)\n' "$name" "$cmd" "${cli_args[*]}"
+            else
+              warn "    failed to add '$name' to Claude Code"
+            fi
+            ;;
+          skip)
+            warn "    entry '$name' has neither 'url' nor 'command'; skipped."
+            ;;
+        esac
+      done
       # Orphan cleanup: read user-scope MCPs straight from ~/.claude.json
       # and remove any not in canonical.
       claude_json="$HOME/.claude.json"
@@ -266,19 +298,36 @@ pathlib.Path(path).write_text(text, encoding="utf-8")
 for name in removed:
     print(f"    removing orphan: {name}")
 PY
-    while IFS=$'\t' read -r name url; do
-      python3 - "$codex_cfg" "$name" "$url" <<'PY'
-import re, sys, pathlib
-path, name, url = sys.argv[1], sys.argv[2], sys.argv[3]
+    # Pipe one JSON object per entry into Python, which emits a TOML block
+    # for either HTTP (`url`) or stdio (`command` + optional `args`).
+    jq -c '.mcpServers | to_entries[] | {name: .key} + .value' "$MCP_SOURCE" |
+    python3 - "$codex_cfg" <<'PY'
+import json, re, sys, pathlib
+path = sys.argv[1]
 text = pathlib.Path(path).read_text(encoding="utf-8")
-pattern = re.compile(r"(?ms)^[ \t]*\[mcp_servers\." + re.escape(name) + r"\][^\[]*")
-text = pattern.sub("", text)
-text = text.rstrip() + ("\n\n" if text.strip() else "")
-text += f"[mcp_servers.{name}]\nurl = \"{url}\"\n"
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    e = json.loads(line)
+    name = e["name"]
+    if "url" in e:
+        block = f'[mcp_servers.{name}]\nurl = "{e["url"]}"\n'
+    elif "command" in e:
+        block = f'[mcp_servers.{name}]\ncommand = "{e["command"]}"\n'
+        if e.get("args"):
+            args_repr = ", ".join('"' + a.replace('"', '\\"') + '"' for a in e["args"])
+            block += f'args = [{args_repr}]\n'
+    else:
+        sys.stderr.write(f"    entry '{name}' has neither 'url' nor 'command'; skipped (Codex).\n")
+        continue
+    pattern = re.compile(r"(?ms)^[ \t]*\[mcp_servers\." + re.escape(name) + r"\][^\[]*")
+    text = pattern.sub("", text)
+    text = text.rstrip() + ("\n\n" if text.strip() else "")
+    text += block
 text = re.sub(r"\n{3,}", "\n\n", text).lstrip()
 pathlib.Path(path).write_text(text, encoding="utf-8")
 PY
-    done < <(jq -r '.mcpServers | to_entries[] | [.key, .value.url] | @tsv' "$MCP_SOURCE")
     printf -- '-> Codex: %s\n    wrote/updated %s [mcp_servers.*] block(s)\n' "$codex_cfg" "$mcp_count"
   fi
 fi

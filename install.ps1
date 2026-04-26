@@ -165,7 +165,8 @@ if (Test-Path $McpSource) {
     Write-Host "-> Copilot (VS Code): $vscodePath" -ForegroundColor Cyan
     Write-Host "    wrote $mcpCount entry/entries (key renamed to 'servers')"
 
-    # Claude Code -- use the CLI so we don't touch unrelated settings
+    # Claude Code -- use the CLI so we don't touch unrelated settings.
+    # Supports both HTTP (`url`) and stdio (`command` + `args`) MCP entries.
     Write-Host "-> Claude Code: via 'claude mcp' CLI (user scope)" -ForegroundColor Cyan
     $claudeCli = Get-Command claude -ErrorAction SilentlyContinue
     $canonicalNames = @($entries | ForEach-Object { $_.Name })
@@ -175,15 +176,33 @@ if (Test-Path $McpSource) {
         foreach ($entry in $entries) {
             $name = $entry.Name
             $cfg  = $entry.Value
-            $url  = $cfg.url
-            $type = if ($cfg.PSObject.Properties.Name -contains 'type') { $cfg.type } else { 'http' }
             # Idempotent: remove (ignore "not found" on first run) then add.
             # Route through cmd so stderr is discarded by the OS — PS 5.1 wraps
             # native stderr as a terminating error under ErrorActionPreference=Stop.
             & cmd /c "claude mcp remove $name --scope user >nul 2>&1"
-            & claude mcp add --scope user --transport $type $name $url | Out-Null
+
+            $isHttp = $cfg.PSObject.Properties.Name -contains 'url'
+            $isStdio = $cfg.PSObject.Properties.Name -contains 'command'
+            if ($isHttp) {
+                $url  = $cfg.url
+                $type = if ($cfg.PSObject.Properties.Name -contains 'type') { $cfg.type } else { 'http' }
+                & claude mcp add --scope user --transport $type $name $url | Out-Null
+                $detail = "$url ($type)"
+            } elseif ($isStdio) {
+                # claude mcp add --scope user <name> -- <command> [args...]
+                $command = $cfg.command
+                $argList = if ($cfg.PSObject.Properties.Name -contains 'args' -and $cfg.args) {
+                    @($cfg.args)
+                } else { @() }
+                $cliArgs = @('mcp', 'add', '--scope', 'user', $name, '--', $command) + $argList
+                & claude @cliArgs | Out-Null
+                $detail = "$command $($argList -join ' ') (stdio)"
+            } else {
+                Write-Warning "    entry '$name' has neither 'url' nor 'command'; skipped."
+                continue
+            }
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "    $name  ->  $url ($type)"
+                Write-Host "    $name  ->  $detail"
             } else {
                 Write-Warning "    failed to add '$name' to Claude Code"
             }
@@ -231,7 +250,20 @@ if (Test-Path $McpSource) {
     foreach ($entry in $entries) {
         $name = $entry.Name
         $cfg  = $entry.Value
-        $block = "[mcp_servers.$name]`r`nurl = `"$($cfg.url)`"`r`n"
+        # Build TOML block. HTTP entries use `url = "..."`; stdio entries use
+        # `command = "..."` and (optionally) `args = [...]`.
+        if ($cfg.PSObject.Properties.Name -contains 'url') {
+            $block = "[mcp_servers.$name]`r`nurl = `"$($cfg.url)`"`r`n"
+        } elseif ($cfg.PSObject.Properties.Name -contains 'command') {
+            $block = "[mcp_servers.$name]`r`ncommand = `"$($cfg.command)`"`r`n"
+            if ($cfg.PSObject.Properties.Name -contains 'args' -and $cfg.args) {
+                $argParts = @($cfg.args) | ForEach-Object { '"' + ($_ -replace '"','\"') + '"' }
+                $block += "args = [" + ($argParts -join ', ') + "]`r`n"
+            }
+        } else {
+            Write-Warning "    entry '$name' has neither 'url' nor 'command'; skipped (Codex)."
+            continue
+        }
         # Strip any existing block for this name (header line + following lines until next [section] or EOF).
         $pattern = "(?ms)^\s*\[mcp_servers\.$([regex]::Escape($name))\][^\[]*"
         $codexText = [regex]::Replace($codexText, $pattern, '')
