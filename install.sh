@@ -282,10 +282,10 @@ if [[ -f "$MCP_SOURCE" ]]; then
     mkdir -p "$(dirname "$codex_cfg")"
     [[ -f "$codex_cfg" ]] || : > "$codex_cfg"
     # Orphan cleanup (Codex): scan existing blocks; strip any name not in canonical.
-    python3 - "$codex_cfg" <<PY
+    python3 - "$codex_cfg" "$canonical_names" <<'PY'
 import re, sys, pathlib
 path = sys.argv[1]
-canonical = set("""$canonical_names""".split())
+canonical = set(sys.argv[2].split())
 text = pathlib.Path(path).read_text(encoding="utf-8")
 existing = re.findall(r"(?m)^[ \t]*\[mcp_servers\.([^\]]+)\]", text)
 removed = []
